@@ -1,8 +1,3 @@
-# BonerWeb
-
-Unofficial web (WebGL) port of **Bonerooms** by Jasozz Games, so it can be played in a desktop
-browser with nothing to install and **no server to run**. All credit for the game goes to its
-developer, who gave permission for a web version.
 
 ## Playing
 
