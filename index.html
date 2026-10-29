@@ -165,6 +165,8 @@
         productName: "Bonerooms",
         productVersion: "1.5.02",
         showBanner: unityShowBanner,
+        // Render at 1 pixel per CSS pixel: high-DPI screens (most Chromebooks) would otherwise draw 2-4x the pixels.
+        devicePixelRatio: 1,
         // The reassembled data lives at a throw-away blob: URL; do not let Unity store a
         // new 470 MB copy of it in the browser's IndexedDB on every visit.
         cacheControl: function () { return "no-store"; },
