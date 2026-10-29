@@ -4,16 +4,17 @@
     <meta charset="utf-8">
     <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Bonerooms (unofficial web port)</title>
+    <title>BoneRooms</title>
     <link rel="shortcut icon" href="TemplateData/favicon.ico">
     <link rel="stylesheet" href="TemplateData/style.css">
     <script src="p2p/mini-server.js"></script>
     <script src="p2p/rtc-link.js"></script>
     <script src="p2p/vnet.js"></script>
     <style>
-      #credit { text-align: center; font: 13px/1.5 sans-serif; color: #666; margin: 14px auto; max-width: 900px; padding: 0 12px; }
-      #credit a { color: #666; }
-      #load-status { text-align: center; font: 14px sans-serif; color: #333; margin: 8px; min-height: 18px; }
+      html, body { width: 100%; height: 100%; overflow: hidden; background: #231F20; }
+      #unity-container, #unity-container.unity-desktop { position: fixed; left: 0; top: 0; width: 100%; height: 100%; transform: none; }
+      #unity-canvas { width: 100%; height: 100%; display: block; }
+      #load-status { display: none; }
     </style>
   </head>
   <body>
@@ -26,17 +27,8 @@
         </div>
       </div>
       <div id="unity-warning"> </div>
-      <div id="unity-footer">
-        <div id="unity-logo-title-footer"></div>
-        <div id="unity-fullscreen-button"></div>
-        <div id="unity-build-title">Bonerooms</div>
-      </div>
     </div>
     <div id="load-status"></div>
-    <div id="credit">
-      Unofficial web port of <b>Bonerooms</b> by Jasozz Games. The game is free to play; all credit for it goes to its developer.<br>
-      The first load downloads about 470&nbsp;MB, so it takes a while. Needs a desktop browser and a few GB of free memory.
-    </div>
     <script>
       var canvas = document.querySelector("#unity-canvas");
       var statusLine = document.querySelector("#load-status");
@@ -80,7 +72,7 @@
       if (p2pActive) {
         window.BonerP2P.net.onStatus = function (text, isError) {
           statusLine.textContent = text;
-          statusLine.style.color = isError ? "#b00" : "#333";
+          if (isError && text) unityShowBanner(text, "warning");
         };
       }
 
@@ -179,8 +171,17 @@
         unityShowBanner("This game needs a desktop browser (Chrome or Edge on a laptop or Chromebook).", "error");
         throw new Error("mobile browsers are not supported");
       }
-      canvas.style.width = "960px";
-      canvas.style.height = "600px";
+      // Go fullscreen on the first key press or click (browsers only allow it after a gesture).
+      function goFullscreen() {
+        document.removeEventListener("keydown", goFullscreen, true);
+        document.removeEventListener("pointerdown", goFullscreen, true);
+        try {
+          var p = document.documentElement.requestFullscreen && document.documentElement.requestFullscreen();
+          if (p && p.catch) p.catch(function () {});
+        } catch (e) { /* stay windowed */ }
+      }
+      document.addEventListener("keydown", goFullscreen, true);
+      document.addEventListener("pointerdown", goFullscreen, true);
       if (navigator.deviceMemory && navigator.deviceMemory < 4) {
         unityShowBanner("This device reports less than 4 GB of memory; the game may crash.", "warning");
       }
@@ -210,7 +211,6 @@
           });
           statusLine.textContent = "";
           document.querySelector("#unity-loading-bar").style.display = "none";
-          document.querySelector("#unity-fullscreen-button").onclick = function () { instance.SetFullscreen(1); };
         } catch (e) {
           statusLine.textContent = "";
           unityShowBanner("Failed to start: " + (e && e.message ? e.message : e), "error");
