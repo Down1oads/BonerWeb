@@ -1,9 +1,9 @@
-
+﻿
 ## Playing
 
 1. Open the page in desktop **Chrome or Edge** (phones and tablets are not supported).
 2. Wait for the download (about 470 MB the first time) and press Enter.
-3. **To host:** choose *Host Game*, pick a mode, and start the lobby. A 9-digit lobby code appears at the
+3. **To host:** choose *Host Game*, pick a mode, and start the lobby. A 6-digit lobby code appears at the
    top of the screen while you host. Send it to your friends.
 4. **To join:** choose *Join Game*, then *Join By ID*, and type the host's code.
 
@@ -37,7 +37,7 @@ lobby server and the other players connect to it directly over WebRTC.
 - **Some networks block it.** Only STUN is used, with no relay fallback. It works on most home
   networks, but strict school, work or mobile networks can stop two browsers from connecting.
 - **Players can see each other's IP address.** That is how WebRTC works.
-- **The lobby code is the only secret.** It has 9 digits, so a determined person could guess it
+- **The lobby code is the only secret.** It has only 6 digits, so a determined person could guess it
   while a lobby is open. Do not use the code for anything else, and keep lobbies short-lived.
 - ntfy.sh is a third-party free service. If it is down or blocked, only same-computer play works.
 - Voice chat does not work in the browser. Playing in two browsers on different computers over the

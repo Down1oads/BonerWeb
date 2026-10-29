@@ -158,7 +158,7 @@
 
 	MiniServer.prototype._newLobbyCode = function () {
 		var code;
-		do { code = String(100000000 + rnd(900000000)); } while (this.lobbies.has(code));
+		do { code = String(100000 + rnd(900000)); } while (this.lobbies.has(code));
 		return code;
 	};
 
