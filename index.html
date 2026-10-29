@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="en-us">
+  <head>
+    <meta charset="utf-8">
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bonerooms (unofficial web port)</title>
+    <link rel="shortcut icon" href="TemplateData/favicon.ico">
+    <link rel="stylesheet" href="TemplateData/style.css">
+    <script src="p2p/mini-server.js"></script>
+    <script src="p2p/rtc-link.js"></script>
+    <script src="p2p/vnet.js"></script>
+    <style>
+      #credit { text-align: center; font: 13px/1.5 sans-serif; color: #666; margin: 14px auto; max-width: 900px; padding: 0 12px; }
+      #credit a { color: #666; }
+      #load-status { text-align: center; font: 14px sans-serif; color: #333; margin: 8px; min-height: 18px; }
+    </style>
+  </head>
+  <body>
+    <div id="unity-container" class="unity-desktop">
+      <canvas id="unity-canvas" width=960 height=600 tabindex="-1"></canvas>
+      <div id="unity-loading-bar">
+        <div id="unity-logo"></div>
+        <div id="unity-progress-bar-empty">
+          <div id="unity-progress-bar-full"></div>
+        </div>
+      </div>
+      <div id="unity-warning"> </div>
+      <div id="unity-footer">
+        <div id="unity-logo-title-footer"></div>
+        <div id="unity-fullscreen-button"></div>
+        <div id="unity-build-title">Bonerooms</div>
+      </div>
+    </div>
+    <div id="load-status"></div>
+    <div id="credit">
+      Unofficial web port of <b>Bonerooms</b> by Jasozz Games. The game is free to play; all credit for it goes to its developer.<br>
+      The first load downloads about 470&nbsp;MB, so it takes a while. Needs a desktop browser and a few GB of free memory.
+    </div>
+    <script>
+      var canvas = document.querySelector("#unity-canvas");
+      var statusLine = document.querySelector("#load-status");
+
+      function unityShowBanner(msg, type) {
+        var warningBanner = document.querySelector("#unity-warning");
+        function updateBannerVisibility() {
+          warningBanner.style.display = warningBanner.children.length ? 'block' : 'none';
+        }
+        var div = document.createElement('div');
+        div.innerHTML = msg;
+        warningBanner.appendChild(div);
+        if (type == 'error') div.style = 'background: red; padding: 10px;';
+        else {
+          if (type == 'warning') div.style = 'background: yellow; padding: 10px;';
+          setTimeout(function() {
+            warningBanner.removeChild(div);
+            updateBannerVisibility();
+          }, 8000);
+        }
+        updateBannerVisibility();
+      }
+
+      // ---- Lobby server address ----------------------------------------------------------
+      // By default there is no server: the game's server calls are answered inside the browser
+      // (p2p/*.js) and players connect to each other directly. A link can instead carry
+      // ?server=https://example.com to use a real Webworks server. Only https:// (or localhost
+      // for testing) is accepted.
+      var paramServer = (function () {
+        var raw = new URLSearchParams(location.search).get("server");
+        if (!raw) return null;
+        try {
+          var u = new URL(raw);
+          var local = u.hostname === "localhost" || u.hostname === "127.0.0.1";
+          if (u.protocol === "https:" || (u.protocol === "http:" && local)) return u.origin;
+        } catch (e) { /* fall through */ }
+        return null;
+      })();
+      var p2pActive = !paramServer && !!(window.BonerP2P && window.BonerP2P.net);
+      var serverOverride = paramServer || (p2pActive ? window.BonerP2P.net.origin : null);
+      if (p2pActive) {
+        window.BonerP2P.net.onStatus = function (text, isError) {
+          statusLine.textContent = text;
+          statusLine.style.color = isError ? "#b00" : "#333";
+        };
+      }
+
+      var configBlobUrl = null;
+      function isShimConfig(url) {
+        return typeof url === "string" && /StreamingAssets\/shim\.config\.txt(\?|$)/.test(url);
+      }
+      async function prepareServerOverride() {
+        if (!serverOverride) return;
+        var res = await fetch("StreamingAssets/shim.config.txt", { cache: "no-store" });
+        var text = await res.text();
+        var line = "server_url=" + serverOverride;
+        text = /^server_url=.*$/m.test(text) ? text.replace(/^server_url=.*$/m, line) : line + "\n" + text;
+        // Joining a lobby waits while the two browsers connect, so give requests longer than 8 seconds.
+        if (p2pActive) text = /^request_timeout_ms=.*$/m.test(text) ? text.replace(/^request_timeout_ms=.*$/m, "request_timeout_ms=40000") : text + "\nrequest_timeout_ms=40000\n";
+        configBlobUrl = URL.createObjectURL(new Blob([text], { type: "text/plain" }));
+        var realFetch = window.fetch;
+        window.fetch = function (input, init) {
+          var url = typeof input === "string" ? input : (input && input.url);
+          if (configBlobUrl && isShimConfig(url)) return realFetch.call(this, configBlobUrl, init);
+          return realFetch.apply(this, arguments);
+        };
+        var realOpen = XMLHttpRequest.prototype.open;
+        XMLHttpRequest.prototype.open = function (method, url) {
+          var args = Array.prototype.slice.call(arguments);
+          if (configBlobUrl && isShimConfig(String(url))) args[1] = configBlobUrl;
+          return realOpen.apply(this, args);
+        };
+      }
+
+      // ---- Game data: downloaded in pieces (GitHub rejects single files over 100 MB) --------
+      async function sha256Hex(blob) {
+        var digest = await crypto.subtle.digest("SHA-256", await blob.arrayBuffer());
+        return Array.from(new Uint8Array(digest)).map(function (b) { return b.toString(16).padStart(2, "0"); }).join("");
+      }
+
+      async function fetchPart(part, onBytes) {
+        for (var attempt = 1; attempt <= 3; attempt++) {
+          try {
+            var res = await fetch("Build/data/" + part.name);
+            if (!res.ok) throw new Error("HTTP " + res.status);
+            var chunks = [], got = 0, reader = res.body && res.body.getReader();
+            if (reader) {
+              for (;;) {
+                var r = await reader.read();
+                if (r.done) break;
+                chunks.push(r.value); got += r.value.length; onBytes(r.value.length);
+              }
+            } else {
+              var whole = await res.blob(); chunks.push(whole); got = whole.size; onBytes(got);
+            }
+            var blob = new Blob(chunks);
+            if (blob.size !== part.size) throw new Error("size mismatch");
+            if (window.crypto && crypto.subtle && (await sha256Hex(blob)) !== part.sha256) throw new Error("checksum mismatch");
+            return blob;
+          } catch (e) {
+            if (attempt === 3) throw new Error("Could not download " + part.name + " (" + e.message + ")");
+            onBytes(-got); // retry: take back this attempt's bytes from the progress total
+          }
+        }
+      }
+
+      async function downloadGameData(onProgress) {
+        var manifest = await (await fetch("Build/data/manifest.json", { cache: "no-store" })).json();
+        var done = 0, next = 0, blobs = new Array(manifest.parts.length);
+        function onBytes(n) { done += n; onProgress(Math.max(0, Math.min(1, done / manifest.total))); }
+        async function worker() {
+          while (next < manifest.parts.length) {
+            var i = next++;
+            blobs[i] = await fetchPart(manifest.parts[i], onBytes);
+          }
+        }
+        await Promise.all([worker(), worker(), worker()]);
+        return URL.createObjectURL(new Blob(blobs, { type: "application/octet-stream" }));
+      }
+
+      // ---- Start ---------------------------------------------------------------------------
+      var buildUrl = "Build";
+      var loaderUrl = buildUrl + "/WebGL.loader.js";
+      var config = {
+        arguments: [],
+        dataUrl: null, // set to the reassembled blob below
+        frameworkUrl: buildUrl + "/WebGL.framework.js.unityweb",
+        codeUrl: buildUrl + "/WebGL.wasm.unityweb",
+        streamingAssetsUrl: "StreamingAssets",
+        companyName: "Jasozz Games",
+        productName: "Bonerooms",
+        productVersion: "1.5.02",
+        showBanner: unityShowBanner,
+        // The reassembled data lives at a throw-away blob: URL; do not let Unity store a
+        // new 470 MB copy of it in the browser's IndexedDB on every visit.
+        cacheControl: function () { return "no-store"; },
+      };
+
+      if (/iPhone|iPad|iPod|Android/i.test(navigator.userAgent)) {
+        unityShowBanner("This game needs a desktop browser (Chrome or Edge on a laptop or Chromebook).", "error");
+        throw new Error("mobile browsers are not supported");
+      }
+      canvas.style.width = "960px";
+      canvas.style.height = "600px";
+      if (navigator.deviceMemory && navigator.deviceMemory < 4) {
+        unityShowBanner("This device reports less than 4 GB of memory; the game may crash.", "warning");
+      }
+
+      document.querySelector("#unity-loading-bar").style.display = "block";
+      var barFull = document.querySelector("#unity-progress-bar-full");
+      function setBar(fraction) { barFull.style.width = (100 * fraction) + "%"; }
+
+      (async function main() {
+        try {
+          await prepareServerOverride();
+          statusLine.textContent = "Downloading game data...";
+          config.dataUrl = await downloadGameData(function (f) {
+            setBar(0.85 * f);
+            statusLine.textContent = "Downloading game data... " + Math.round(100 * f) + "%";
+          });
+          statusLine.textContent = "Starting the game...";
+          await new Promise(function (resolve, reject) {
+            var script = document.createElement("script");
+            script.src = loaderUrl;
+            script.onload = resolve;
+            script.onerror = function () { reject(new Error("Could not load " + loaderUrl)); };
+            document.body.appendChild(script);
+          });
+          var instance = await createUnityInstance(canvas, config, function (progress) {
+            setBar(0.85 + 0.15 * progress);
+          });
+          statusLine.textContent = "";
+          document.querySelector("#unity-loading-bar").style.display = "none";
+          document.querySelector("#unity-fullscreen-button").onclick = function () { instance.SetFullscreen(1); };
+        } catch (e) {
+          statusLine.textContent = "";
+          unityShowBanner("Failed to start: " + (e && e.message ? e.message : e), "error");
+        }
+      })();
+    </script>
+  </body>
+</html>

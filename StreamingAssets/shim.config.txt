@@ -1,0 +1,3 @@
+server_url=https://p2p.invalid
+engine_path=Unity/Facepunch
+request_timeout_ms=40000
