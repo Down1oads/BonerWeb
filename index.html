@@ -14,7 +14,9 @@
       html, body { width: 100%; height: 100%; overflow: hidden; background: #231F20; }
       #unity-container, #unity-container.unity-desktop { position: fixed; left: 0; top: 0; width: 100%; height: 100%; transform: none; }
       #unity-canvas { width: 100%; height: 100%; display: block; }
-      #load-status { display: none; }
+      /* Only shown while hosting: the lobby code friends need to join. */
+      #load-status { display: none; position: fixed; top: 6px; left: 50%; transform: translateX(-50%); z-index: 5; padding: 3px 10px; border-radius: 4px; background: rgba(0,0,0,.55); color: #ddd; font: 12px sans-serif; pointer-events: none; }
+      #load-status.show { display: block; }
     </style>
   </head>
   <body>
@@ -72,6 +74,7 @@
       if (p2pActive) {
         window.BonerP2P.net.onStatus = function (text, isError) {
           statusLine.textContent = text;
+          statusLine.classList.toggle("show", /^Hosting lobby/.test(text || ""));
           if (isError && text) unityShowBanner(text, "warning");
         };
       }

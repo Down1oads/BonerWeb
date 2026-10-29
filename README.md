@@ -3,8 +3,8 @@
 
 1. Open the page in desktop **Chrome or Edge** (phones and tablets are not supported).
 2. Wait for the download (about 470 MB the first time) and press Enter.
-3. **To host:** choose *Host Game*, pick a mode, and start the lobby. The page shows a 9-digit lobby
-   code at the top, and the lobby screen shows it as well. Send it to your friends.
+3. **To host:** choose *Host Game*, pick a mode, and start the lobby. A 9-digit lobby code appears at the
+   top of the screen while you host. Send it to your friends.
 4. **To join:** choose *Join Game*, then *Join By ID*, and type the host's code.
 
 Playing alone also works: host a lobby, press Ready, then Start.
